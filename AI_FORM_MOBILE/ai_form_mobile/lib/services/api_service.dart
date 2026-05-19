@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 
 class ApiService {
   static const String baseUrl =
-      "http://10.124.73.211:8000";
+      "http://192.168.1.12:8000";
 
   // Upload file
   static Future<Map<String, dynamic>> uploadFile(
