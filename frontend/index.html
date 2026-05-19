@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Form Assistant</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+
+body{
+  margin:0;
+  font-family:'Segoe UI',sans-serif;
+  background:linear-gradient(135deg,#e2e8f0,#cbd5f5);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+}
+
+/* APP */
+#app{
+  width:100%;
+  max-width:420px;
+  height:95vh;
+  backdrop-filter:blur(20px);
+  background:rgba(255,255,255,0.9);
+  border-radius:20px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 25px 60px rgba(0,0,0,0.3);
+}
+
+/* HEADER */
+#header{
+  background:linear-gradient(135deg,#2563eb,#7c3aed);
+  color:white;
+  padding:14px;
+}
+
+/* UPLOAD */
+#uploadBox{
+  display:flex;
+  gap:6px;
+  padding:10px;
+  background:#f9fafb;
+}
+
+#uploadBox input,
+#uploadBox select{
+  flex:1;
+  padding:6px;
+  border-radius:6px;
+  border:1px solid #ddd;
+}
+
+/* CHAT */
+#chat{
+  flex:1;
+  padding:12px;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  background:#eef2ff;
+}
+
+/* MESSAGE */
+.msg{
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+}
+
+.bubble{
+  padding:12px 14px;
+  border-radius:18px;
+  max-width:75%;
+  font-size:14px;
+  line-height:1.4;
+  position:relative;
+  animation:fadeIn 0.3s ease;
+}
+
+/* BOT */
+.bot .bubble{
+  background:white;
+  border-bottom-left-radius:4px;
+}
+
+/* USER */
+.user{
+  justify-content:flex-end;
+}
+
+.user .bubble{
+  background:#4f46e5;
+  color:white;
+  border-bottom-right-radius:4px;
+}
+
+/* TIME */
+.time{
+  font-size:10px;
+  opacity:0.6;
+  margin-top:4px;
+}
+
+/* INPUT */
+#inputBar{
+  display:flex;
+  gap:6px;
+  padding:10px;
+  background:white;
+  border-top:1px solid #eee;
+}
+
+#input{
+  flex:1;
+  padding:12px;
+  border-radius:25px;
+  border:1px solid #ccc;
+  outline:none;
+}
+
+.avatar{
+  width:32px;
+  height:32px;
+  border-radius:50%;
+  object-fit:cover;
+}
+
+/* BUTTON */
+button{
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  border:none;
+  background:linear-gradient(135deg,#4f46e5,#7c3aed);
+  color:white;
+  font-size:18px;
+  cursor:pointer;
+  transition:0.2s;
+}
+
+button:hover{
+  transform:scale(1.08);
+}
+
+/* TYPING */
+.typing span{
+  width:6px;
+  height:6px;
+  background:#999;
+  display:inline-block;
+  border-radius:50%;
+  margin:2px;
+  animation:blink 1.4s infinite;
+}
+
+.typing span:nth-child(2){
+  animation-delay:0.2s;
+}
+
+.typing span:nth-child(3){
+  animation-delay:0.4s;
+}
+
+@keyframes blink{
+  0%,80%,100%{
+    opacity:0.3;
+  }
+  40%{
+    opacity:1;
+  }
+}
+
+@keyframes fadeIn{
+  from{
+    opacity:0;
+    transform:translateY(6px);
+  }
+  to{
+    opacity:1;
+  }
+}
+@keyframes wave{
+
+  0%{
+    height:8px;
+  }
+
+  50%{
+    height:24px;
+  }
+
+  100%{
+    height:8px;
+  }
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="app">
+
+<!-- HEADER -->
+<div id="header">
+
+<div style="display:flex;justify-content:space-between;align-items:center;">
+
+<span style="font-weight:bold;font-size:16px;">
+🤖 AI Government Form Assistant
+</span>
+
+<button id="voiceToggle"
+onclick="toggleVoice()"
+style="
+width:40px;
+height:40px;
+border-radius:50%;
+background:white;
+color:#4f46e5;
+font-size:18px;
+">
+🔇
+</button>
+
+</div>
+
+</div>
+
+<!-- UPLOAD -->
+<div id="uploadBox">
+
+<input type="file" id="file">
+
+<select id="lang">
+  <option>English</option>
+  <option>Tamil</option>
+  <option>Hindi</option>
+</select>
+
+<button onclick="upload()">⬆</button>
+
+</div>
+
+<!-- CHAT -->
+<div id="chat"></div>
+
+<!-- INPUT -->
+<div id="inputBar">
+
+<input id="input"
+placeholder="Type your answer..."
+disabled>
+
+<button onclick="send()">➤</button>
+
+<button onclick="voice()">🎤</button>
+
+</div>
+
+</div>
+
+<script>
+
+/* ---------------- VARIABLES ---------------- */
+
+let sessionId = null;
+let filename = null;
+let voiceEnabled = false;
+let editingMessage = null;
+let editingIndex = -1;
+let currentQuestion = "";
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+
+/* ---------------- TIME ---------------- */
+
+function time(){
+
+  return new Date().toLocaleTimeString([],{
+    hour:'2-digit',
+    minute:'2-digit'
+  });
+}
+
+/* ---------------- VOICE TOGGLE ---------------- */
+
+function toggleVoice(){
+
+  voiceEnabled = !voiceEnabled;
+  input.disabled = false;
+input.focus();
+
+  const btn = document.getElementById("voiceToggle");
+
+  if(voiceEnabled){
+
+    btn.innerHTML = "🔊";
+
+    btn.style.background = "#22c55e";
+
+    btn.style.color = "white";
+
+  }else{
+
+    btn.innerHTML = "🔇";
+
+    btn.style.background = "white";
+
+    btn.style.color = "#4f46e5";
+
+    window.speechSynthesis.cancel();
+  }
+}
+
+/* ---------------- LANGUAGE ---------------- */
+
+function getVoiceLang(){
+
+  const lang = document.getElementById("lang").value;
+
+  if(lang === "Tamil"){
+    return "ta-IN";
+  }
+
+  if(lang === "Hindi"){
+    return "hi-IN";
+  }
+
+  return "en-IN";
+}
+
+/* ---------------- SPEAK QUESTION ---------------- */
+
+function speakQuestion(text){
+
+    if(!voiceEnabled){
+        return;
+    }
+
+    // stop previous speech
+    speechSynthesis.cancel();
+
+    setTimeout(() => {
+
+        const voices =
+            speechSynthesis.getVoices();
+
+        const utterance =
+            new SpeechSynthesisUtterance(text);
+
+        // selected dropdown language
+        const selectedLang =
+            document.getElementById("lang").value;
+
+        let selectedVoice;
+
+        // TAMIL
+        if(selectedLang === "Tamil"){
+
+            utterance.lang = "ta-IN";
+
+            selectedVoice =
+                voices.find(v =>
+                    v.lang === "ta-IN"
+                );
+        }
+
+        // HINDI
+        else if(selectedLang === "Hindi"){
+
+            utterance.lang = "hi-IN";
+
+            selectedVoice =
+                voices.find(v =>
+                    v.lang.includes("hi")
+                );
+        }
+
+        // ENGLISH
+        else{
+
+            utterance.lang = "en-IN";
+
+            selectedVoice =
+                voices.find(v =>
+                    v.lang.startsWith("en")
+                );
+        }
+
+        // set voice if found
+        if(selectedVoice){
+            utterance.voice =
+                selectedVoice;
+        }
+
+        console.log(
+            "Speaking with:",
+            selectedVoice?.name
+        );
+
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 1;
+
+        speechSynthesis.speak(utterance);
+
+    }, 300);
+}
+/* ---------------- ADD MESSAGE ---------------- */
+
+function add(text,type,index=null){
+
+  const div = document.createElement("div");
+
+  div.className = "msg " + type;
+
+  const avatar = document.createElement("img");
+
+  avatar.className = "avatar";
+
+  if(type === "bot"){
+
+    avatar.src =
+    "https://cdn-icons-png.flaticon.com/512/4712/4712109.png";
+
+  }else{
+
+    avatar.src =
+    "https://cdn-icons-png.flaticon.com/512/847/847969.png";
+  }
+
+  const bubble = document.createElement("div");
+
+  bubble.className = "bubble";
+
+  // USER MESSAGE
+  if(type === "user"){
+
+    bubble.innerHTML = `
+
+<div style="
+display:flex;
+align-items:center;
+gap:8px;
+">
+
+  <div class="msgText"
+  style="
+  word-break:break-word;
+  ">
+    ${text}
+  </div>
+
+  <button onclick="editAnswer(this,${index})"
+  style="
+    width:26px;
+    height:26px;
+    border:none;
+    border-radius:50%;
+    background:rgba(255,255,255,0.2);
+    color:white;
+    cursor:pointer;
+    font-size:13px;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    flex-shrink:0;
+  ">
+    ✏️
+  </button>
+
+</div>
+
+<div class="time">
+  ${time()}
+</div>
+`;
+}else{
+
+bubble.innerHTML = `
+
+<div style="
+display:flex;
+flex-direction:column;
+gap:10px;
+">
+
+  <!-- QUESTION TEXT -->
+  <div>
+    ${text}
+  </div>
+
+  <!-- VOICE PLAYER -->
+  <div style="
+  background:#dcfce7;
+  border-radius:18px;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  ">
+
+      <!-- AVATAR -->
+      <div style="
+      width:42px;
+      height:42px;
+      border-radius:50%;
+      background:#bfdbfe;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      font-size:22px;
+      flex-shrink:0;
+      ">
+        <button onclick="voiceAnswer()"
+style="
+width:42px;
+height:42px;
+border:none;
+border-radius:50%;
+background:#bfdbfe;
+font-size:18px;
+cursor:pointer;
+display:flex;
+justify-content:center;
+align-items:center;
+flex-shrink:0;
+">
+🎤
+</button>
+      </div>
+
+      <!-- PLAY BUTTON -->
+      <button onclick="speakQuestion('${String(text).replace(/'/g,"")}')"
+      style="
+      width:34px;
+      height:34px;
+      border-radius:50%;
+      border:none;
+      background:black;
+      color:white;
+      font-size:14px;
+      cursor:pointer;
+      flex-shrink:0;
+      ">
+      ▶
+      </button>
+
+      <!-- WAVE -->
+      <div style="
+      flex:1;
+      display:flex;
+      align-items:center;
+      gap:2px;
+      height:28px;
+      ">
+
+        ${Array(25).fill(`
+        <div style="
+        width:3px;
+        background:#86efac;
+        border-radius:10px;
+        animation:wave 1s infinite ease-in-out;
+        "></div>
+        `).join("")}
+
+      </div>
+
+  </div>
+
+  <div class="time">
+    ${time()}
+  </div>
+
+</div>
+`;
+}
+  if(type === "user"){
+
+    div.appendChild(bubble);
+    div.appendChild(avatar);
+
+  }else{
+
+    div.appendChild(avatar);
+    div.appendChild(bubble);
+  }
+
+  chat.appendChild(div);
+
+  chat.scrollTop = chat.scrollHeight;
+
+  // SPEAK BOT QUESTION
+  if(type === "bot"){
+    currentQuestion = text;
+
+    if(text.includes("uploaded")){
+      return;
+    }
+
+   if(!editingMessage){
+
+  setTimeout(() => {
+
+    speakQuestion(text);
+
+  },1500);
+}
+  }
+}
+function editAnswer(btn,index){
+
+  // stop all speech
+  speechSynthesis.cancel();
+
+  const bubble = btn.closest(".bubble");
+
+  const text =
+  bubble.querySelector(".msgText").innerText;
+
+  // put old answer back
+  input.value = text;
+
+  input.focus();
+
+  // save edit state
+  editingMessage = bubble.parentElement;
+
+  editingIndex = index;
+
+  // REMOVE ALL FUTURE MESSAGES
+  const allMsgs =
+  [...document.querySelectorAll(".msg")];
+
+  const currentMsg =
+  bubble.parentElement;
+
+  let remove = false;
+
+  allMsgs.forEach(msg => {
+
+    if(msg === currentMsg){
+
+      remove = true;
+
+      return;
+    }
+
+    if(remove){
+
+      msg.remove();
+    }
+  });
+
+  // 🔥 RE-ASK CURRENT QUESTION AGAIN
+  add(currentQuestion,"bot");
+}
+/* ---------------- TYPING ---------------- */
+
+function typing(){
+
+  const div = document.createElement("div");
+
+  div.className = "msg bot";
+
+  const bubble = document.createElement("div");
+
+  bubble.className = "bubble typing";
+
+  bubble.innerHTML =
+  "<span></span><span></span><span></span>";
+
+  div.appendChild(bubble);
+
+  chat.appendChild(div);
+
+  chat.scrollTop = chat.scrollHeight;
+
+  return div;
+}
+
+/* ---------------- UPLOAD ---------------- */
+
+function upload(){
+
+  const f = document.getElementById("file").files[0];
+
+  if(!f){
+
+    alert("Upload file");
+
+    return;
+  }
+
+  sessionId = "session_" + Date.now();
+
+  const fd = new FormData();
+
+  fd.append("file",f);
+
+  fetch("/chat/upload/",{
+    method:"POST",
+    body:fd
+  })
+
+  .then(r => r.json())
+
+  .then(d => {
+
+    filename = d.filename;
+
+    add("Form uploaded successfully ✅","bot");
+
+    start();
+  });
+}
+
+/* ---------------- START ---------------- */
+
+function start(){
+
+  fetch(`/chat/start?session_id=${sessionId}&filename=${filename}`,{
+    method:"POST"
+  })
+
+  .then(r => r.json())
+
+  .then(d => {
+
+    add(d.question,"bot");
+  });
+}
+
+/* ---------------- SEND ---------------- */
+
+function send(){
+
+  const text = input.value.trim();
+
+  if(!text) return;
+
+  input.value = "";
+
+  // 🔥 EDIT MODE
+ if(editingMessage){
+
+    // update edited answer text
+    editingMessage.querySelector(".msgText")
+    .innerText = text;
+
+    // clear edit mode
+    editingMessage = null;
+
+    editingIndex = -1;
+
+    return;
+}
+
+  // 🔥 NORMAL FLOW
+  const currentIndex =
+  document.querySelectorAll(".user").length;
+
+  add(text,"user",currentIndex);
+
+  const t = typing();
+
+  fetch(`/chat/answer?session_id=${sessionId}&text=${encodeURIComponent(text)}`,{
+    method:"POST"
+  })
+
+  .then(r => r.json())
+
+  .then(d => {
+
+    t.remove();
+
+    if(d.question){
+
+      add(d.question,"bot");
+    }
+
+    if(d.completed){
+
+      add("Form completed ✅ Downloading PDF...","bot");
+
+      window.open(`/generate-pdf?session_id=${sessionId}`);
+    }
+  });
+}
+/* ---------------- ENTER ---------------- */
+
+input.addEventListener("keydown",e => {
+
+  if(e.key === "Enter"){
+
+    e.preventDefault();
+
+    send();
+  }
+});
+
+/* ---------------- VOICE INPUT ---------------- */
+
+function voice(){
+
+  if(!('webkitSpeechRecognition' in window)){
+
+    alert("Voice not supported");
+
+    return;
+  }
+
+  const rec = new webkitSpeechRecognition();
+
+  rec.lang = getVoiceLang();
+
+  rec.start();
+
+  rec.onresult = e => {
+
+    input.value = e.results[0][0].transcript;
+  };
+}
+function voiceAnswer(){
+
+  if(!('webkitSpeechRecognition' in window)){
+
+    alert("Voice not supported");
+
+    return;
+  }
+
+  const rec = new webkitSpeechRecognition();
+
+  rec.lang = getVoiceLang();
+
+  rec.start();
+
+  // animation effect
+  const micBtns =
+  document.querySelectorAll("button");
+
+  rec.onstart = () => {
+
+    micBtns.forEach(btn => {
+
+      if(btn.innerHTML === "🎤"){
+
+        btn.style.background = "#ef4444";
+      }
+    });
+  };
+
+  rec.onend = () => {
+
+    micBtns.forEach(btn => {
+
+      if(btn.innerHTML === "🎤"){
+
+        btn.style.background = "#bfdbfe";
+      }
+    });
+  };
+
+  rec.onresult = e => {
+
+    const text =
+    e.results[0][0].transcript;
+
+    input.value = text;
+
+    input.focus();
+  };
+}
+
+/* ---------------- LOAD VOICES ---------------- */
+
+window.speechSynthesis.onvoiceschanged = () => {
+
+  console.log("Voices Loaded");
+};
+
+</script>
+
+</body>
+</html>
