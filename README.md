@@ -50,3 +50,6 @@ flutter run
 
 ## Author
 Mirudhula R
+Sahana K
+Pavithra N
+Sandeepram B V 
